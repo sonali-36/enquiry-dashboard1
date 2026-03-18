@@ -2,7 +2,6 @@ import streamlit as st
 import pandas as pd
 import gspread
 from google.oauth2.service_account import Credentials
-import json
 
 # -------------------------------------------------
 # PAGE CONFIG
@@ -23,7 +22,6 @@ SCOPES = [
 ]
 
 try:
-    # Load credentials from Streamlit secrets instead of local file
     creds_dict = st.secrets["google_service_account"]
     creds = Credentials.from_service_account_info(
         creds_dict,
@@ -42,7 +40,15 @@ SHEET_ID = "1KS4PgGii9kcDMKxVtJdPKhaPCabdwsBSC3nkjuRRfvw"
 try:
     client = gspread.authorize(creds)
     sheet = client.open_by_key(SHEET_ID)
-    worksheet = sheet.worksheet("System_Logic")
+
+    # ✅ USE Lead_Review FIRST (fallback safe)
+    try:
+        worksheet = sheet.worksheet("Lead_Review")
+        sheet_used = "Lead_Review"
+    except:
+        worksheet = sheet.worksheet("System_Logic")
+        sheet_used = "System_Logic"
+
 except Exception as e:
     st.error("❌ Failed to connect to Google Sheet")
     st.code(str(e))
@@ -54,7 +60,9 @@ except Exception as e:
 data = worksheet.get_all_records()
 df = pd.DataFrame(data)
 
-# ✅ REMOVE EMPTY / FAKE ROWS (FIXES 999 ENQUIRIES)
+# -------------------------------------------------
+# CLEAN EMPTY ROWS
+# -------------------------------------------------
 if "Week" in df.columns:
     df = df[df["Week"].astype(str).str.strip() != ""]
 
@@ -153,5 +161,5 @@ v3.metric("Value Conversion %", f"{value_conversion:.2f}%")
 # -------------------------------------------------
 # RAW DATA VIEW
 # -------------------------------------------------
-with st.expander("🔍 View System_Logic Data"):
+with st.expander(f"🔍 View {sheet_used} Data"):
     st.dataframe(df)
