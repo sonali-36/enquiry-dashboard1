@@ -2,6 +2,7 @@ import streamlit as st
 import pandas as pd
 import gspread
 from google.oauth2.service_account import Credentials
+import json
 
 # -------------------------------------------------
 # PAGE CONFIG
@@ -14,22 +15,22 @@ st.set_page_config(
 st.title("📊 Lean System Conversion Dashboard")
 
 # -------------------------------------------------
-# CREDENTIALS
+# CREDENTIALS (USING STREAMLIT SECRETS)
 # -------------------------------------------------
-CREDS_PATH = r"C:\Users\HP\OneDrive\Desktop\Enquiry_dashboard\credentials.json"
-
 SCOPES = [
     "https://www.googleapis.com/auth/spreadsheets",
     "https://www.googleapis.com/auth/drive"
 ]
 
 try:
-    creds = Credentials.from_service_account_file(
-        CREDS_PATH,
+    # Load credentials from Streamlit secrets instead of local file
+    creds_dict = st.secrets["google_service_account"]
+    creds = Credentials.from_service_account_info(
+        creds_dict,
         scopes=SCOPES
     )
 except Exception as e:
-    st.error("❌ Failed to load credentials.json")
+    st.error("❌ Failed to load credentials from Streamlit Secrets")
     st.code(str(e))
     st.stop()
 
