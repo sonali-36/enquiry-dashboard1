@@ -2,8 +2,6 @@ import streamlit as st
 import pandas as pd
 import gspread
 from google.oauth2.service_account import Credentials
-import json
-
 
 # -------------------------------------------------
 # PAGE CONFIG
@@ -16,7 +14,7 @@ st.set_page_config(
 st.title("📊 Lean System Conversion Dashboard")
 
 # -------------------------------------------------
-# CREDENTIALS (USING STREAMLIT SECRETS)
+# CREDENTIALS
 # -------------------------------------------------
 SCOPES = [
     "https://www.googleapis.com/auth/spreadsheets",
@@ -30,7 +28,7 @@ try:
         scopes=SCOPES
     )
 except Exception as e:
-    st.error("❌ Failed to load credentials from Streamlit Secrets")
+    st.error("❌ Failed to load credentials")
     st.code(str(e))
     st.stop()
 
@@ -43,7 +41,6 @@ try:
     client = gspread.authorize(creds)
     sheet = client.open_by_key(SHEET_ID)
 
-    # ✅ USE Lead_Review FIRST (fallback safe)
     try:
         worksheet = sheet.worksheet("Lead_Review")
         sheet_used = "Lead_Review"
@@ -63,17 +60,21 @@ data = worksheet.get_all_records()
 df = pd.DataFrame(data)
 
 # -------------------------------------------------
-# CLEAN EMPTY ROWS
+# CLEAN DATA
 # -------------------------------------------------
-if "Week" in df.columns:
-    df = df[df["Week"].astype(str).str.strip() != ""]
+# Remove fully empty rows
+df = df.dropna(how="all")
 
+# Normalize column names (remove spaces)
+df.columns = df.columns.str.strip()
+
+# Stop if still empty
 if df.empty:
     st.warning("⚠️ No valid enquiry data found")
     st.stop()
 
 # -------------------------------------------------
-# DATA CLEANING
+# CLEAN NUMERIC COLUMNS
 # -------------------------------------------------
 if "Expected_Value" in df.columns:
     df["Expected_Value"] = (
@@ -85,9 +86,7 @@ if "Expected_Value" in df.columns:
     )
     df["Expected_Value"] = pd.to_numeric(df["Expected_Value"], errors="coerce").fillna(0)
 
-# -------------------------------------------------
-# FINAL ORDER VALUE (AUTO-DETECT COLUMN)
-# -------------------------------------------------
+# Detect Final Order Value column automatically
 FINAL_VALUE_COL = None
 
 for col in df.columns:
@@ -109,7 +108,16 @@ else:
     final_order_value = 0
 
 # -------------------------------------------------
-# CONVERSION METRICS
+# CLEAN STATUS COLUMNS
+# -------------------------------------------------
+if "Sample_Status" in df.columns:
+    df["Sample_Status"] = df["Sample_Status"].astype(str).str.strip()
+
+if "Order_Confirmed" in df.columns:
+    df["Order_Confirmed"] = df["Order_Confirmed"].astype(str).str.strip()
+
+# -------------------------------------------------
+# METRICS
 # -------------------------------------------------
 total_enquiries = len(df)
 
@@ -119,8 +127,8 @@ sample_approved = (
 )
 
 orders_confirmed = (
-    df[df["Order_Status"] == "Confirmed"].shape[0]
-    if "Order_Status" in df.columns else 0
+    df[df["Order_Confirmed"] == "Yes"].shape[0]
+    if "Order_Confirmed" in df.columns else 0
 )
 
 lead_to_sample = (sample_approved / total_enquiries * 100) if total_enquiries else 0
@@ -161,7 +169,7 @@ v2.metric("Final Order Value", f"₹ {final_order_value:,.0f}")
 v3.metric("Value Conversion %", f"{value_conversion:.2f}%")
 
 # -------------------------------------------------
-# RAW DATA VIEW
+# RAW DATA
 # -------------------------------------------------
 with st.expander(f"🔍 View {sheet_used} Data"):
     st.dataframe(df)
